@@ -1,15 +1,20 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useCamera } from "@/hooks/useCamera";
 import { useCountdown } from "@/hooks/useCountdown";
+import { useLighting } from "@/hooks/useLighting";
 import { captureFrame } from "@/lib/capture";
 import {
   COUNTDOWN_SECONDS,
   MANUAL_RESOLUTIONS,
   PHOTO_COUNT,
 } from "@/lib/config";
+import { getFilter } from "@/lib/filters";
+import { recommendFilters } from "@/lib/recommendations";
 import type { ResolutionMode, Shot } from "@/lib/types";
+import { FilterPanel } from "./FilterPanel";
+import { LightingIndicator } from "./LightingIndicator";
 import { Badge, Card, GhostButton, PrimaryButton } from "./ui";
 
 /** Kontrol pemilihan resolusi: Auto-HD, HD, Full HD. */
@@ -158,6 +163,16 @@ export function Photobooth() {
   const { videoRef, status, error, resolution, mode, setMode, start, stop } =
     useCamera();
   const countdown = useCountdown();
+  const isReady = status === "ready";
+
+  // TAHAP 2 — analisis pencahayaan real-time + filter aktif.
+  const analysis = useLighting(videoRef, isReady);
+  const recommendations = useMemo(
+    () => (analysis ? recommendFilters(analysis) : []),
+    [analysis],
+  );
+  const [filterId, setFilterId] = useState("normal");
+  const activeFilter = getFilter(filterId);
 
   const [shots, setShots] = useState<(Shot | null)[]>(
     Array(PHOTO_COUNT).fill(null),
@@ -167,7 +182,6 @@ export function Photobooth() {
   /** index slot yang sedang di-retake, null = sesi utama berurutan. */
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
 
-  const isReady = status === "ready";
   const filledCount = shots.filter(Boolean).length;
   const allFilled = filledCount === PHOTO_COUNT;
 
@@ -176,17 +190,26 @@ export function Photobooth() {
     (index: number, isRetake: boolean) => {
       const video = videoRef.current;
       if (!video) return;
-      const dataUrl = captureFrame(video, { maxWidth: 1920 });
+      // Filter CSS yang dipakai preview diterapkan juga di canvas → konsisten.
+      const dataUrl = captureFrame(video, {
+        maxWidth: 1920,
+        cssFilter: activeFilter.css,
+      });
       if (!dataUrl) return;
       setFlash(true);
       setTimeout(() => setFlash(false), 450);
       setShots((prev) => {
         const next = [...prev];
-        next[index] = { id: `${Date.now()}-${index}`, dataUrl, retaken: isRetake };
+        // Simpan filterId agar thumbnail bisa menampilkan preview yang sama.
+        next[index] = {
+          id: `${Date.now()}-${index}`,
+          dataUrl,
+          retaken: isRetake,
+        };
         return next;
       });
     },
-    [videoRef],
+    [activeFilter.css, videoRef],
   );
 
   /** Mulai sesi 4 foto: countdown berurutan di tiap slot. */
@@ -276,6 +299,7 @@ export function Photobooth() {
         <div className="relative bg-black aspect-[4/3] sm:aspect-video">
           <video
             ref={videoRef}
+            style={{ filter: activeFilter.css }}
             className={`absolute inset-0 h-full w-full object-cover mirror-preview transition-opacity duration-300 ${
               isReady ? "opacity-100" : "opacity-0"
             }`}
@@ -339,29 +363,39 @@ export function Photobooth() {
         </div>
       </Card>
 
-      {/* ===== Kolom hasil 4 slot ===== */}
-      <Card className="p-3 sm:p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold">Hasil Foto</h2>
-          <span className="text-xs text-muted">
-            {filledCount}/{PHOTO_COUNT}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          {shots.map((shot, i) => (
-            <ShotSlot
-              key={i}
-              shot={shot}
-              index={i}
-              disabled={isCapturing || !isReady}
-              onRetake={retake}
-            />
-          ))}
-        </div>
-        <p className="mt-3 text-[0.7rem] leading-relaxed text-muted">
-          Preview di-mirror seperti kaca. Hasil foto yang diunduh tidak mirror.
-        </p>
-      </Card>
+      {/* ===== Kolom kanan: hasil + analisis + filter ===== */}
+      <div className="flex flex-col gap-5">
+        <Card className="p-3 sm:p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-bold">Hasil Foto</h2>
+            <span className="text-xs text-muted">
+              {filledCount}/{PHOTO_COUNT}
+            </span>
+          </div>
+          <div className="grid grid-cols-4 lg:grid-cols-2 gap-2.5">
+            {shots.map((shot, i) => (
+              <ShotSlot
+                key={i}
+                shot={shot}
+                index={i}
+                disabled={isCapturing || !isReady}
+                onRetake={retake}
+              />
+            ))}
+          </div>
+          <p className="mt-3 text-[0.7rem] leading-relaxed text-muted">
+            Preview di-mirror seperti kaca. Hasil foto yang diunduh tidak mirror.
+          </p>
+        </Card>
+
+        <LightingIndicator analysis={analysis} active={isReady} />
+
+        <FilterPanel
+          value={filterId}
+          onChange={setFilterId}
+          recommendations={recommendations}
+        />
+      </div>
     </div>
   );
 }

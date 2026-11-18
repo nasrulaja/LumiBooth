@@ -11,6 +11,11 @@ export interface CaptureOptions {
   maxWidth?: number;
   mimeType?: string;
   quality?: number;
+  /**
+   * CSS filter string (dari FILTERS[].css). Diterapkan via ctx.filter
+   * agar hasil akhir persis sama dengan preview di layar.
+   */
+  cssFilter?: string;
 }
 
 export function captureFrame(
@@ -30,6 +35,15 @@ export function captureFrame(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
+
+  // Terapkan filter CSS ke canvas (didukung browser modern).
+  if (opts.cssFilter && opts.cssFilter !== "none") {
+    try {
+      ctx.filter = opts.cssFilter;
+    } catch {
+      /* fallback: tanpa filter */
+    }
+  }
 
   // Gambar frame apa adanya (tanpa mirror).
   ctx.drawImage(video, 0, 0, w, h);
