@@ -1,0 +1,12 @@
+
+> lumibooth@0.1.0 start
+> next start
+
+▲ Next.js 16.4.6
+- Local:         http://localhost:3000
+- Network:       http://100.116.202.78:3000
+✓ Ready in 301ms
+⚠ Warning: Next.js ignored package-lock.json in C:\Users\user because it would include your home directory (C:\Users\user).
+ To use this directory, set `outputFileTracingRoot` in your Next.js config.
+
+✓ Running next.config.ts took 66ms
