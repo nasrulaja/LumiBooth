@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:lighting": "node scripts/test-lighting.cjs",
+    "test:templates": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/test-templates.mts",
+    "test:e2e": "node scripts/e2e.cjs",
+    "screenshots": "node scripts/screenshots.cjs"
   },
   "dependencies": {
     "next": "16.4.6",
@@ -20,6 +24,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "playwright": "^1.65.1",
     "tailwindcss": "4.3.3",
     "typescript": "^5"
   }

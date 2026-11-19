@@ -12,9 +12,12 @@ import {
 } from "@/lib/config";
 import { getFilter } from "@/lib/filters";
 import { recommendFilters } from "@/lib/recommendations";
+import { getTemplate, type LayoutId } from "@/lib/templates";
 import type { ResolutionMode, Shot } from "@/lib/types";
 import { FilterPanel } from "./FilterPanel";
 import { LightingIndicator } from "./LightingIndicator";
+import { ResultCard } from "./ResultCard";
+import { TemplatePanel } from "./TemplatePanel";
 import { Badge, Card, GhostButton, PrimaryButton } from "./ui";
 
 /** Kontrol pemilihan resolusi: Auto-HD, HD, Full HD. */
@@ -174,6 +177,17 @@ export function Photobooth() {
   const [filterId, setFilterId] = useState("normal");
   const activeFilter = getFilter(filterId);
 
+  // TAHAP 3 — template frame + varian warna + layout.
+  const [templateId, setTemplateId] = useState("minimal");
+  const [variantId, setVariantId] = useState(() => getTemplate("minimal").variants[0].id);
+  const [layout, setLayout] = useState<LayoutId>("strip");
+
+  /** Ganti template: reset varian ke warna pertama template tsb. */
+  const changeTemplate = useCallback((id: string) => {
+    setTemplateId(id);
+    setVariantId(getTemplate(id).variants[0].id);
+  }, []);
+
   const [shots, setShots] = useState<(Shot | null)[]>(
     Array(PHOTO_COUNT).fill(null),
   );
@@ -264,8 +278,9 @@ export function Photobooth() {
 
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px] items-start">
       {/* ===== Kolom kamera ===== */}
+      <div className="flex flex-col gap-5 min-w-0">
       <Card className="overflow-hidden">
         <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2.5 border-b">
           <div className="flex items-center gap-2 min-w-0">
@@ -363,8 +378,7 @@ export function Photobooth() {
         </div>
       </Card>
 
-      {/* ===== Kolom kanan: hasil + analisis + filter ===== */}
-      <div className="flex flex-col gap-5">
+      {/* ===== Hasil foto per shot (kolom kiri) ===== */}
         <Card className="p-3 sm:p-4">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold">Hasil Foto</h2>
@@ -372,7 +386,7 @@ export function Photobooth() {
               {filledCount}/{PHOTO_COUNT}
             </span>
           </div>
-          <div className="grid grid-cols-4 lg:grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             {shots.map((shot, i) => (
               <ShotSlot
                 key={i}
@@ -388,12 +402,30 @@ export function Photobooth() {
           </p>
         </Card>
 
-        <LightingIndicator analysis={analysis} active={isReady} />
+        <ResultCard
+          shots={shots}
+          templateId={templateId}
+          variantId={variantId}
+          layout={layout}
+        />
+      </div>
+
+      <div className="flex flex-col gap-5 min-w-0">
+      <LightingIndicator analysis={analysis} active={isReady} />
 
         <FilterPanel
           value={filterId}
           onChange={setFilterId}
           recommendations={recommendations}
+        />
+
+        <TemplatePanel
+          templateId={templateId}
+          variantId={variantId}
+          layout={layout}
+          onTemplateChange={changeTemplate}
+          onVariantChange={setVariantId}
+          onLayoutChange={setLayout}
         />
       </div>
     </div>

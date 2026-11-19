@@ -44,5 +44,6 @@ next-env.d.ts
 start.log
 *.log
 
-# test artifacts.tmp-test
+# test artifacts
+.tmp-test
 
