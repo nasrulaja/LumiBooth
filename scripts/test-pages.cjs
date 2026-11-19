@@ -3,7 +3,7 @@
 // dengan fake webcam untuk memastikan base path & aset benar.
 const { chromium } = require("playwright");
 
-const URL = "http://localhost:4174/LumiBooth/";
+const URL = process.env.PAGES_URL || "http://localhost:4174/LumiBooth/";
 
 (async () => {
   const browser = await chromium.launch({
