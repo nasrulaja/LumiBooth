@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AUTO_HD_CHAIN,
+  DEFAULT_FACING_MODE,
   RESOLUTION_PRESETS,
   type ResolutionPreset,
 } from "@/lib/config";
-import type { ActiveResolution, ResolutionMode } from "@/lib/types";
+import type { ActiveResolution, CameraInfo, ResolutionMode } from "@/lib/types";
+
 
 export type CameraStatus =
   | "idle"
@@ -16,7 +18,8 @@ export type CameraStatus =
   | "error"
   | "unsupported";
 
-interface UseCameraResult {
+/** Bentuk nilai balik useCamera — diekspor agar bisa dipakai komponen lain. */
+export interface UseCameraResult {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   status: CameraStatus;
   error: string | null;
@@ -24,9 +27,42 @@ interface UseCameraResult {
   mode: ResolutionMode;
   /** Resolusi ideal yang dilaporkan kamera (track settings). */
   supportedCaps: { width: number; height: number } | null;
+  /** Info kamera aktual (resolusi, fps, label, facingMode) untuk panel debug. */
+  info: CameraInfo | null;
   setMode: (mode: ResolutionMode) => void;
   start: () => Promise<void>;
   stop: () => void;
+}
+
+/**
+ * Baca info kamera aktual dari elemen <video> + track settings.
+ * Dipakai untuk panel "Info Kamera" dan untuk menyamakan framing capture.
+ */
+function readCameraInfo(
+  video: HTMLVideoElement | null,
+  stream: MediaStream,
+  facingMode: "user" | "environment",
+  appliedPreset: string,
+): CameraInfo {
+  const track = stream.getVideoTracks()[0];
+  const settings = track?.getSettings() ?? {};
+  // Prioritaskan ukuran frame ASLI dari elemen video; fallback ke settings.
+  const videoWidth = video?.videoWidth || settings.width || 0;
+  const videoHeight = video?.videoHeight || settings.height || 0;
+  return {
+    videoWidth,
+    videoHeight,
+    trackWidth: settings.width ?? null,
+    trackHeight: settings.height ?? null,
+    frameRate:
+      typeof settings.frameRate === "number"
+        ? Math.round(settings.frameRate)
+        : null,
+    deviceLabel: track?.label || null,
+    facingMode,
+    aspectRatio: videoHeight ? videoWidth / videoHeight : 0,
+    appliedPreset,
+  };
 }
 
 /**
@@ -35,21 +71,26 @@ interface UseCameraResult {
  * Bila kamera tidak mendukung persis, browser akan memilih resolusi
  * terdekat — jadi kita baca hasil sebenarnya dari track settings.
  */
-async function requestStream(preset: ResolutionPreset) {
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: false,
-    video: {
-      width: { ideal: preset.width },
-      height: { ideal: preset.height },
-      facingMode: "user",
-    },
-  });
+async function requestStream(
+  preset: ResolutionPreset | null,
+  facingMode: "user" | "environment",
+) {
+  // Preset null = upaya terakhir tanpa constraint (paling permisif).
+  const video: MediaTrackConstraints = preset
+    ? {
+        width: { ideal: preset.width },
+        height: { ideal: preset.height },
+        facingMode,
+      }
+    : { facingMode };
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: false, video });
   const track = stream.getVideoTracks()[0];
   const settings = track?.getSettings() ?? {};
   return {
     stream,
-    width: settings.width ?? preset.width,
-    height: settings.height ?? preset.height,
+    width: settings.width ?? preset?.width ?? 0,
+    height: settings.height ?? preset?.height ?? 0,
   };
 }
 
@@ -68,7 +109,10 @@ export function useCamera() {
   const [resolution, setResolution] = useState<ActiveResolution | null>(null);
   const [supportedCaps, setSupportedCaps] =
     useState<{ width: number; height: number } | null>(null);
+  const [info, setInfo] = useState<CameraInfo | null>(null);
   const [mode, setModeState] = useState<ResolutionMode>("auto");
+  /** Kamera depan (default) atau belakang — hanya berubah bila user minta. */
+  const facingModeRef = useRef<"user" | "environment">(DEFAULT_FACING_MODE);
 
   /** Lepas semua track kamera. */
   const stop = useCallback(() => {
@@ -77,6 +121,7 @@ export function useCamera() {
     if (videoRef.current) videoRef.current.srcObject = null;
     setStatus("idle");
     setResolution(null);
+    setInfo(null);
   }, []);
 
   /** Pasang stream ke elemen video lalu tunggu metadata siap. */
@@ -108,16 +153,19 @@ export function useCamera() {
     setStatus("requesting");
     setError(null);
 
-    const presets: ResolutionPreset[] =
+    const presets: (ResolutionPreset | null)[] =
       mode === "auto"
-        ? AUTO_HD_CHAIN
+        ? [...AUTO_HD_CHAIN, null]
         : [RESOLUTION_PRESETS.find((p) => p.id === mode) ?? RESOLUTION_PRESETS[1]];
 
     let lastErr: unknown = null;
     for (let i = 0; i < presets.length; i++) {
       const preset = presets[i];
       try {
-        const { stream, width, height } = await requestStream(preset);
+        const { stream, width, height } = await requestStream(
+          preset,
+          facingModeRef.current,
+        );
         streamRef.current = stream;
         setSupportedCaps({ width, height });
         await attach(stream);
@@ -128,6 +176,15 @@ export function useCamera() {
           label,
           isFallback: mode === "auto" && i > 0,
         });
+        // Baca ulang setelah video punya metadata → ukuran frame ASLI.
+        setInfo(
+          readCameraInfo(
+            videoRef.current,
+            stream,
+            facingModeRef.current,
+            preset ? `${preset.width}×${preset.height}` : "tanpa constraint",
+          ),
+        );
         setStatus("ready");
         return;
       } catch (err) {
@@ -157,10 +214,22 @@ export function useCamera() {
   }, []);
 
   // Restart stream saat mode berubah, hanya bila kamera sudah pernah aktif.
-  const isActive = useRef(false);
-  isActive.current = status === "ready" || status === "requesting";
+  // `isActiveRef` disinkronkan di effect (bukan saat render) supaya tidak
+  // melanggar aturan React: render harus bebas efek samping.
+  const isActiveRef = useRef(false);
   useEffect(() => {
-    if (isActive.current) void start();
+    isActiveRef.current = status === "ready" || status === "requesting";
+  }, [status]);
+
+  // Lewati restart pada mount pertama; hanya bereaksi saat mode BERUBAH.
+  const firstModeRun = useRef(true);
+  useEffect(() => {
+    if (firstModeRun.current) {
+      firstModeRun.current = false;
+      return;
+    }
+    if (!isActiveRef.current) return;
+    void start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
@@ -178,6 +247,7 @@ export function useCamera() {
     resolution,
     mode,
     supportedCaps,
+    info,
     setMode,
     start,
     stop,
