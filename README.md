@@ -4,6 +4,8 @@
 
 Semua diproses **100% lokal di perangkatmu** — tidak ada foto yang di-upload ke server.
 
+### 🔗 [**Buka demo →**](https://nasrulaja.github.io/LumiBooth/)
+
 ![LumiBooth](docs/02-camera.png)
 
 ---
@@ -89,6 +91,7 @@ npm run start
 | `npm run test:lighting` | 7 skenario klasifikasi cahaya → rekomendasi filter |
 | `npm run test:templates` | 13 template, ≥3 varian unik, 3 layout |
 | `npm run test:e2e` | E2E browser (Playwright + fake webcam): capture 4 foto, render akhir, watermark, switch layout |
+| `npm run test:pages` | Smoke test hasil static export (base path, aset, alur capture) |
 
 E2E memerlukan Chromium:
 
@@ -154,17 +157,26 @@ Atau via CLI:
 npx vercel --prod
 ```
 
-### Catatan untuk hosting statis
+### GitHub Pages (demo)
 
-LumiBooth adalah aplikasi client-side penuh, jadi bisa di-export statis:
+Repo ini sudah dilengkapi workflow `.github/workflows/pages.yml` yang otomatis
+membangun static export dan men-deploy-nya setiap push ke `main`.
 
-```ts
-// next.config.ts
-export default { output: "export" };
+Build statis memakai `output: "export"` + `basePath: "/LumiBooth"` yang
+diaktifkan hanya ketika env `GITHUB_PAGES=1` (lihat `next.config.ts`), sehingga
+`npm run dev` dan deploy Vercel tetap berjalan normal.
+
+Aktifkan sekali di **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Setelah itu setiap push ke `main` akan memperbarui demo.
+
+Untuk mencoba build statis secara lokal:
+
+```bash
+# Windows PowerShell
+$env:GITHUB_PAGES="1"; npm run build; npx serve out
+# macOS / Linux
+GITHUB_PAGES=1 npm run build && npx serve out
 ```
-
-Lalu `npm run build` menghasilkan folder `out/` yang bisa di-host di GitHub Pages,
-Netlify, Cloudflare Pages, dan sejenisnya. Pastikan host memakai **HTTPS**.
 
 ---
 

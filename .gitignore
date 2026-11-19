@@ -46,4 +46,5 @@ start.log
 
 # test artifacts
 .tmp-test
+.pages-preview
 
