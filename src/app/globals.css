@@ -89,6 +89,30 @@ body {
   animation: lb-flash 0.45s ease-out both;
 }
 
+/* Notif kecil Pose Coach (senyum / saran) — muncul halus lalu hilang. */
+@keyframes lb-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: lb-fade-in 0.25s ease-out both;
+}
+
+/* Marquee landing page — teks berjalan tanpa henti (ala funcam). */
+@keyframes lb-marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.animate-marquee {
+  animation: lb-marquee 22s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee { animation: none; }
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb {
   background: var(--border);
