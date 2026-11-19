@@ -1,44 +1,13 @@
-// Test klasifikasi cahaya → rekomendasi filter.
-//
-// src/lib memakai import tanpa ekstensi (gaya bundler), jadi Node tidak bisa
-// menjalankannya langsung. Script ini:
-//   1. compile src/lib/*.ts ke .tmp-test (CommonJS)
-//   2. jalankan assertion di dalam folder hasil compile
-//   3. bersihkan .tmp-test
-//
-// Jalankan: node scripts/test-lighting.cjs
-const { execFileSync } = require("child_process");
+/**
+ * Test klasifikasi cahaya → rekomendasi filter.
+ * Jalankan: node scripts/test-lighting.cjs
+ *
+ * Kompilasi src/lib ditangani scripts/lib-test-helper.cjs (alias @/* + JSON).
+ */
 const fs = require("fs");
 const path = require("path");
+const { compileLib, cleanup, tmp } = require("./lib-test-helper.cjs");
 
-const root = path.join(__dirname, "..");
-const tmp = path.join(root, ".tmp-test");
-
-function compile() {
-  fs.rmSync(tmp, { recursive: true, force: true });
-  execFileSync(
-    process.execPath,
-    [
-      path.join(root, "node_modules", "typescript", "bin", "tsc"),
-      ...fs
-        .readdirSync(path.join(root, "src", "lib"))
-        .filter((f) => f.endsWith(".ts"))
-        .map((f) => path.join("src", "lib", f)),
-      "--module", "commonjs",
-      "--target", "ES2020",
-      "--moduleResolution", "node",
-      "--skipLibCheck",
-      "--outDir", ".tmp-test",
-      "--lib", "dom,es2020",
-    ],
-    { cwd: root, stdio: "inherit" },
-  );
-  // tsc menaruh output datar di .tmp-test/*.js
-  fs.writeFileSync(
-    path.join(tmp, "package.json"),
-    JSON.stringify({ type: "commonjs" }),
-  );
-}
 
 let fail = 0;
 const ok = (name, cond, detail = "") => {
@@ -48,9 +17,10 @@ const ok = (name, cond, detail = "") => {
 
 try {
   console.log("Mengompilasi src/lib …");
-  compile();
+  compileLib();
 
-  const base = tmp;
+  // Hasil compile bersarang: .tmp-test/lib/*.js
+  const base = path.join(tmp, "lib");
   const { describeLighting, LIGHTING_THRESHOLDS } = require(path.join(base, "lighting.js"));
   const { recommendFilters } = require(path.join(base, "recommendations.js"));
 
@@ -132,7 +102,7 @@ try {
     ok(`${c.name}: ada alasan`, recs.every((r) => r.reason.length > 0));
   }
 } finally {
-  fs.rmSync(tmp, { recursive: true, force: true });
+  cleanup();
 }
 
 console.log(fail === 0 ? "\nALL PASSED ✅" : `\n${fail} FAILED ❌`);

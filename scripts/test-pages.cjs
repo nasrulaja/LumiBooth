@@ -2,6 +2,7 @@
 // http://localhost:4174/LumiBooth/). Menjalankan alur photobooth sungguhan
 // dengan fake webcam untuk memastikan base path & aset benar.
 const { chromium } = require("playwright");
+const { enterBooth } = require("./e2e-helpers.cjs");
 
 const URL = process.env.PAGES_URL || "http://localhost:4174/LumiBooth/";
 
@@ -48,6 +49,7 @@ const URL = process.env.PAGES_URL || "http://localhost:4174/LumiBooth/";
   );
 
   // Kamera
+  await enterBooth(page);
   await page.getByRole("button", { name: /Nyalakan Kamera/i }).click();
   await page.waitForSelector("video", { timeout: 15000 });
   await page.getByText(/Kamera aktif/i).waitFor({ timeout: 15000 });

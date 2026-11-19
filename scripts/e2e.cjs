@@ -2,6 +2,7 @@
 // Requires chromium installed via: npx playwright install chromium
 // Run against a running dev/preview server at BASE (default http://localhost:3000).
 const { chromium } = require("playwright");
+const { enterBooth } = require("./e2e-helpers.cjs");
 
 const BASE = process.env.BASE || "http://localhost:3000";
 
@@ -36,6 +37,7 @@ const BASE = process.env.BASE || "http://localhost:3000";
   ok("footer credit ada", (await page.locator("footer").innerText()).includes("@ruelzexe"));
 
   // Nyalakan kamera.
+  await enterBooth(page);
   await page.getByRole("button", { name: /Nyalakan Kamera/i }).click();
   await page.waitForSelector("video", { timeout: 15000 });
 
